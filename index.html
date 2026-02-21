@@ -411,6 +411,21 @@
   .game-skip:hover { background: var(--btn-secondary-hover); }
   .game-skip-hint { color: var(--text3); font-size: 12px; margin-top: 12px; }
 
+  /* ─── GUESS INPUT ─── */
+  .guess-area { max-width: 560px; margin: 0 auto 20px; }
+  .guess-input {
+    width: 100%; padding: 16px 20px; border-radius: var(--radius-sm);
+    border: 2px solid var(--border2); background: var(--surface); color: var(--text);
+    font-family: inherit; font-size: 18px; outline: none; text-align: center;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .guess-input:focus { border-color: var(--accent); }
+  .guess-input::placeholder { color: var(--text3); }
+  .guess-hint { color: var(--text3); font-size: 12px; margin-top: 8px; text-align: center; }
+  .guess-result { text-align: center; margin-top: 8px; font-size: 14px; font-weight: 600; }
+  .guess-result.correct { color: var(--green); }
+  .guess-result.wrong { color: var(--red); }
+
   .game-waiting { padding: 60px 20px; text-align: center; }
   .game-waiting h2 { font-size: 28px; margin-bottom: 12px; }
   .game-waiting .score-display { font-size: 48px; font-weight: 900; color: var(--green); margin: 20px 0; }
@@ -551,6 +566,11 @@
           <div class="card-word" id="card-back-word"></div>
         </div>
       </div>
+    </div>
+    <div class="guess-area" id="guess-area">
+      <input class="guess-input" id="guess-input" type="text" placeholder="Type your translation and press Enter..." autocomplete="off" />
+      <div class="guess-hint">Press Enter to flip &middot; Space to flip without guessing</div>
+      <div class="guess-result" id="guess-result"></div>
     </div>
     <div class="card-actions" id="card-actions" style="visibility:hidden;">
       <button class="btn btn-wrong" onclick="markCard('wrong')">Again</button>
@@ -1241,19 +1261,30 @@ function showCard() {
   document.getElementById('flashcard').classList.remove('flipped');
   document.getElementById('card-actions').style.visibility = 'hidden';
 
+  // Reset guess input
+  const guessInput = document.getElementById('guess-input');
+  const guessResult = document.getElementById('guess-result');
+  guessInput.value = '';
+  guessResult.textContent = '';
+  guessResult.className = 'guess-result';
+  document.getElementById('guess-area').style.display = '';
+  guessInput.focus();
+
   if (reverseMode) {
     document.getElementById('card-front-label').textContent = 'English';
     document.getElementById('card-front-word').textContent = w.en;
     document.getElementById('card-front-word').style.color = 'var(--green)';
     document.getElementById('card-back-label').textContent = 'Spanish';
-    document.getElementById('card-back-word').textContent = w.es;
+    // Hide the answer until flip
+    document.getElementById('card-back-word').textContent = '';
     document.getElementById('card-back-word').style.color = 'var(--accent2)';
   } else {
     document.getElementById('card-front-label').textContent = 'Spanish';
     document.getElementById('card-front-word').textContent = w.es;
     document.getElementById('card-front-word').style.color = 'var(--accent2)';
     document.getElementById('card-back-label').textContent = 'English';
-    document.getElementById('card-back-word').textContent = w.en;
+    // Hide the answer until flip
+    document.getElementById('card-back-word').textContent = '';
     document.getElementById('card-back-word').style.color = 'var(--green)';
   }
 
@@ -1271,8 +1302,34 @@ function flipCard() {
   if (isFlipped) return;
   isFlipped = true;
   SFX.flip();
+
+  // Populate the answer now on flip
+  const w = studyQueue[studyIndex];
+  if (reverseMode) {
+    document.getElementById('card-back-word').textContent = w.es;
+  } else {
+    document.getElementById('card-back-word').textContent = w.en;
+  }
+
   document.getElementById('flashcard').classList.add('flipped');
   document.getElementById('card-actions').style.visibility = 'visible';
+  document.getElementById('guess-area').style.display = 'none';
+
+  // Check guess if user typed something
+  const guess = document.getElementById('guess-input').value.trim().toLowerCase();
+  if (guess) {
+    const answer = reverseMode ? w.es.toLowerCase() : w.en.toLowerCase();
+    const answers = answer.split('/').map(a => a.trim().replace(/^to /, ''));
+    const isCorrect = answers.some(a => guess === a || guess === answer || guess === answer.replace(/^to /, ''));
+    const guessResult = document.getElementById('guess-result');
+    if (isCorrect) {
+      guessResult.textContent = 'Correct!';
+      guessResult.className = 'guess-result correct';
+    } else {
+      guessResult.textContent = 'Your guess: ' + document.getElementById('guess-input').value.trim();
+      guessResult.className = 'guess-result wrong';
+    }
+  }
 }
 
 function markCard(action) {
@@ -1598,12 +1655,24 @@ function toast(msg) {
   setTimeout(() => t.classList.remove('show'), 2500);
 }
 
+// Guess input Enter key
+document.getElementById('guess-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !isFlipped) {
+    e.preventDefault();
+    flipCard();
+  }
+});
+
 // Keyboard shortcuts for study mode
 document.addEventListener('keydown', (e) => {
   const studyScreen = document.getElementById('screen-study');
   if (!studyScreen.classList.contains('active')) return;
 
-  if (e.code === 'Space' && !isFlipped) { e.preventDefault(); flipCard(); }
+  // Only use Space to flip if the guess input is NOT focused
+  const guessInput = document.getElementById('guess-input');
+  const guessIsFocused = document.activeElement === guessInput;
+
+  if (e.code === 'Space' && !isFlipped && !guessIsFocused) { e.preventDefault(); flipCard(); }
   if (isFlipped) {
     if (e.key === '1') markCard('wrong');
     if (e.key === '2') markCard('known');
