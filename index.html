@@ -845,7 +845,7 @@
   <div class="toast" id="toast"></div>
 </div>
 
-<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="https://unpkg.com/mqtt@5.10.7/dist/mqtt.min.js"></script>
 <script>
 // ═══════════════════════════════════════════════════════════
 // SOUND EFFECTS (Web Audio API)
@@ -1598,9 +1598,15 @@ function unmarkKnown(es) {
 // ═══════════════════════════════════════════════════════════
 // GAME MODE - SHARED
 // ═══════════════════════════════════════════════════════════
-let peer = null;
-let peerConn = null;
+let mqttClient = null;
 let isOnlineGame = false;
+let mqttTopic = '';
+let myPlayerId = '';
+
+const MQTT_BROKERS = [
+  'wss://broker.hivemq.com:8884/mqtt',
+  'wss://broker.emqx.io:8084/mqtt'
+];
 
 function getMyName() {
   return document.getElementById('my-name').value.trim() || 'Player';
@@ -1634,30 +1640,55 @@ function seedFromCode(code) {
   return Math.abs(h) || 1;
 }
 
-const PEER_CONFIG = {
-  debug: 0,
-  config: {
-    iceServers: [
-      { urls: 'stun:stun.l.google.com:19302' },
-      { urls: 'stun:stun1.l.google.com:19302' },
-      { urls: 'stun:openrelay.metered.ca:80' },
-      { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
-      { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
-      { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
-    ]
-  }
-};
-
 function cleanupPeer() {
   clearInterval(gameState.timer);
   document.getElementById('opponent-score-box').classList.remove('visible');
-  if (peerConn) { try { peerConn.close(); } catch {} peerConn = null; }
-  if (peer) { try { peer.destroy(); } catch {} peer = null; }
+  if (mqttClient) { try { mqttClient.end(true); } catch {} mqttClient = null; }
   isOnlineGame = false;
+  mqttTopic = '';
 }
 
-function sendPeer(data) {
-  if (peerConn && peerConn.open) peerConn.send(data);
+function mqttPublish(data) {
+  if (mqttClient && mqttClient.connected) {
+    mqttClient.publish(mqttTopic, JSON.stringify({ ...data, from: myPlayerId }));
+  }
+}
+
+function connectMqtt(brokerIndex) {
+  return new Promise((resolve, reject) => {
+    const url = MQTT_BROKERS[brokerIndex || 0];
+    myPlayerId = 'p_' + Math.random().toString(36).slice(2, 10);
+    const client = mqtt.connect(url, {
+      clientId: 'vamos_' + myPlayerId,
+      clean: true,
+      connectTimeout: 8000,
+      reconnectPeriod: 3000
+    });
+    const timeout = setTimeout(() => {
+      client.end(true);
+      if (brokerIndex === 0 && MQTT_BROKERS.length > 1) {
+        console.log('Trying fallback broker...');
+        connectMqtt(1).then(resolve).catch(reject);
+      } else {
+        reject(new Error('Could not connect to any broker'));
+      }
+    }, 8000);
+    client.on('connect', () => {
+      clearTimeout(timeout);
+      mqttClient = client;
+      resolve(client);
+    });
+    client.on('error', (err) => {
+      clearTimeout(timeout);
+      console.error('MQTT error:', err);
+      client.end(true);
+      if (brokerIndex === 0 && MQTT_BROKERS.length > 1) {
+        connectMqtt(1).then(resolve).catch(reject);
+      } else {
+        reject(err);
+      }
+    });
+  });
 }
 
 // ─── LOCAL GAME ───
@@ -1714,119 +1745,120 @@ function endLocalTurn() {
 // ─── ONLINE GAME ───
 function createRoom() {
   const code = genCode();
-  const peerId = 'vamos-' + code.toLowerCase();
   cleanupPeer();
   isOnlineGame = true;
+  mqttTopic = 'vamos-game-2026/' + code;
   gameState = { code, myName: getMyName(), myScore: 0, oppName: '', oppScore: 0, isHost: true,
-    words: [], wordIndex: 0, timer: null, timeLeft: 60 };
+    words: [], wordIndex: 0, timer: null, timeLeft: 60, myDone: false, oppDone: false };
 
   showScreen('lobby-host');
   document.getElementById('room-code-display').textContent = code;
-  document.getElementById('lobby-status').innerHTML = '<span class="dot waiting"></span>Waiting for opponent...';
+  document.getElementById('lobby-status').innerHTML = '<span class="dot waiting"></span>Connecting to server...';
 
   const baseUrl = window.location.href.split('?')[0].split('#')[0];
   document.getElementById('lobby-share-link').value = baseUrl + '?room=' + code;
 
-  peer = new Peer(peerId, PEER_CONFIG);
-  peer.on('open', () => {
-    console.log('Host peer open:', peerId);
-  });
-  peer.on('connection', (conn) => {
-    peerConn = conn;
-    conn.on('open', () => {
-      conn.on('data', handleHostData);
-      sendPeer({ type: 'hello', name: gameState.myName });
+  connectMqtt(0).then(() => {
+    mqttClient.subscribe(mqttTopic);
+    mqttClient.on('message', (topic, msg) => {
+      try {
+        const data = JSON.parse(msg.toString());
+        if (data.from === myPlayerId) return; // ignore own messages
+        handleOnlineMessage(data);
+      } catch {}
     });
-    conn.on('close', () => {
-      if (gameState.timeLeft > 0) toast('Opponent disconnected');
-    });
+    document.getElementById('lobby-status').innerHTML = '<span class="dot waiting"></span>Waiting for opponent...';
+    // Publish host presence
+    mqttPublish({ type: 'host', name: gameState.myName });
+  }).catch(() => {
+    toast('Could not connect to server. Try again.');
+    document.getElementById('lobby-status').innerHTML = '<span class="dot waiting"></span>Connection failed. Try again.';
   });
-  peer.on('error', (err) => {
-    console.error('Peer error:', err);
-    if (err.type === 'unavailable-id') {
-      toast('Room code taken, try again');
-      cleanupPeer();
-      showScreen('online-setup');
-    }
-  });
-}
-
-function handleHostData(data) {
-  if (data.type === 'hello') {
-    gameState.oppName = data.name;
-    document.getElementById('lobby-status').innerHTML = '<span class="dot connected"></span><strong>' + data.name + '</strong> joined! Starting...';
-    sendPeer({ type: 'hello', name: gameState.myName });
-    // Host starts the game after short delay
-    const seed = seedFromCode(gameState.code);
-    gameState.words = seededShuffle(ALL_WORDS, seed);
-    setTimeout(() => {
-      sendPeer({ type: 'start', seed });
-      startOnlineCountdown();
-    }, 1500);
-  }
-  if (data.type === 'score') {
-    gameState.oppScore = data.score;
-    document.getElementById('opp-score').textContent = data.score;
-  }
-  if (data.type === 'done') {
-    gameState.oppScore = data.score;
-    gameState.oppDone = true;
-    document.getElementById('opp-score').textContent = data.score;
-    if (gameState.myDone) showFinalResults();
-  }
 }
 
 function joinRoom() {
   const code = document.getElementById('join-code-input').value.trim().toUpperCase();
   if (code.length < 4) { toast('Enter a 4-character code'); return; }
-  const peerId = 'vamos-' + code.toLowerCase();
   cleanupPeer();
   isOnlineGame = true;
+  mqttTopic = 'vamos-game-2026/' + code;
   gameState = { code, myName: getMyName(), myScore: 0, oppName: '', oppScore: 0, isHost: false,
-    words: [], wordIndex: 0, timer: null, timeLeft: 60 };
+    words: [], wordIndex: 0, timer: null, timeLeft: 60, myDone: false, oppDone: false };
 
   document.getElementById('join-status').style.display = '';
   document.getElementById('join-status').innerHTML = '<span class="dot waiting"></span>Connecting...';
+  document.getElementById('join-btn').disabled = true;
 
-  peer = new Peer(undefined, PEER_CONFIG);
-  peer.on('open', () => {
-    peerConn = peer.connect(peerId, { reliable: true });
-    peerConn.on('open', () => {
-      sendPeer({ type: 'hello', name: gameState.myName });
-      peerConn.on('data', handleGuestData);
+  connectMqtt(0).then(() => {
+    mqttClient.subscribe(mqttTopic);
+    mqttClient.on('message', (topic, msg) => {
+      try {
+        const data = JSON.parse(msg.toString());
+        if (data.from === myPlayerId) return;
+        handleOnlineMessage(data);
+      } catch {}
     });
-    peerConn.on('close', () => {
-      if (gameState.timeLeft > 0) toast('Host disconnected');
-    });
-    peerConn.on('error', () => {
-      toast('Connection failed');
-      document.getElementById('join-status').innerHTML = '<span class="dot waiting"></span>Failed. Check the code.';
-    });
-  });
-  peer.on('error', (err) => {
-    console.error('Peer error:', err);
-    toast('Could not connect. Check the code.');
-    document.getElementById('join-status').innerHTML = '<span class="dot waiting"></span>Failed. Check the code.';
+    // Announce join
+    mqttPublish({ type: 'join', name: gameState.myName });
+    document.getElementById('join-status').innerHTML = '<span class="dot waiting"></span>Looking for host...';
+    // Timeout if no response
+    setTimeout(() => {
+      if (!gameState.oppName) {
+        document.getElementById('join-status').innerHTML = '<span class="dot waiting"></span>No room found. Check the code.';
+        document.getElementById('join-btn').disabled = false;
+      }
+    }, 10000);
+  }).catch(() => {
+    toast('Could not connect. Try again.');
+    document.getElementById('join-status').innerHTML = '<span class="dot waiting"></span>Connection failed.';
+    document.getElementById('join-btn').disabled = false;
   });
 }
 
-function handleGuestData(data) {
-  if (data.type === 'hello') {
+function handleOnlineMessage(data) {
+  // Host receives join
+  if (data.type === 'join' && gameState.isHost) {
     gameState.oppName = data.name;
-    document.getElementById('join-status').innerHTML = '<span class="dot connected"></span>Connected to <strong>' + data.name + '</strong>! Starting...';
+    document.getElementById('lobby-status').innerHTML = '<span class="dot connected"></span><strong>' + data.name + '</strong> joined! Starting...';
+    SFX.correct();
+    // Send welcome back with game seed
+    const seed = seedFromCode(gameState.code + Date.now().toString().slice(-4));
+    gameState.seed = seed;
+    gameState.words = seededShuffle(ALL_WORDS, seed);
+    mqttPublish({ type: 'welcome', name: gameState.myName, seed });
+    setTimeout(() => {
+      mqttPublish({ type: 'start' });
+      startOnlineCountdown();
+    }, 2000);
   }
-  if (data.type === 'start') {
+  // Guest receives welcome
+  if (data.type === 'welcome' && !gameState.isHost) {
+    gameState.oppName = data.name;
+    gameState.seed = data.seed;
     gameState.words = seededShuffle(ALL_WORDS, data.seed);
+    document.getElementById('join-status').innerHTML = '<span class="dot connected"></span>Connected to <strong>' + data.name + '</strong>! Starting...';
+    SFX.correct();
+  }
+  // Guest receives host presence (late join)
+  if (data.type === 'host' && !gameState.isHost && !gameState.oppName) {
+    mqttPublish({ type: 'join', name: gameState.myName });
+  }
+  // Both receive start
+  if (data.type === 'start' && !gameState.isHost) {
     startOnlineCountdown();
   }
+  // Score updates
   if (data.type === 'score') {
     gameState.oppScore = data.score;
-    document.getElementById('opp-score').textContent = data.score;
+    const el = document.getElementById('opp-score');
+    if (el) el.textContent = data.score;
   }
+  // Done
   if (data.type === 'done') {
     gameState.oppScore = data.score;
     gameState.oppDone = true;
-    document.getElementById('opp-score').textContent = data.score;
+    const el = document.getElementById('opp-score');
+    if (el) el.textContent = data.score;
     if (gameState.myDone) showFinalResults();
   }
 }
@@ -1843,7 +1875,7 @@ function startOnlineCountdown() {
     if (count > 0) {
       numEl.textContent = count;
       numEl.style.animation = 'none';
-      void numEl.offsetWidth; // reflow
+      void numEl.offsetWidth;
       numEl.style.animation = 'countPop 0.8s ease';
       SFX.tick();
     } else {
@@ -1875,7 +1907,6 @@ function startOnlinePlay() {
   document.getElementById('game-timer').textContent = '60';
   document.getElementById('game-timer').classList.remove('warning');
 
-  // Show opponent score
   const oppBox = document.getElementById('opponent-score-box');
   oppBox.classList.add('visible');
   document.getElementById('opp-name').textContent = gameState.oppName;
@@ -1894,7 +1925,7 @@ function startOnlinePlay() {
       clearInterval(gameState.timer);
       SFX.timeUp();
       gameState.myDone = true;
-      sendPeer({ type: 'done', score: gameState.myScore });
+      mqttPublish({ type: 'done', score: gameState.myScore });
       if (gameState.oppDone) showFinalResults();
       else {
         document.getElementById('game-player-label').textContent = 'Time up! Waiting for ' + gameState.oppName + '...';
@@ -1950,7 +1981,7 @@ function checkGameAnswer() {
     if (isOnlineGame) {
       gameState.myScore++;
       document.getElementById('game-live-score').textContent = gameState.myScore;
-      sendPeer({ type: 'score', score: gameState.myScore });
+      mqttPublish({ type: 'score', score: gameState.myScore });
     } else {
       const player = gameState.currentPlayer === 1 ? gameState.p1 : gameState.p2;
       player.score++;
