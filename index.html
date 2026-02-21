@@ -410,6 +410,71 @@
   }
   .game-skip:hover { background: var(--btn-secondary-hover); }
   .game-skip-hint { color: var(--text3); font-size: 12px; margin-top: 12px; }
+  .game-opponent-score {
+    position: fixed; top: 20px; right: 20px; background: var(--surface);
+    border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 20px;
+    text-align: center; z-index: 50; min-width: 120px; display: none;
+  }
+  .game-opponent-score.visible { display: block; }
+  .game-opponent-score .opp-name { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 1px; }
+  .game-opponent-score .opp-score { font-size: 28px; font-weight: 800; color: var(--red); }
+
+  /* ─── LOBBY ─── */
+  .lobby { text-align: center; padding: 60px 20px; }
+  .lobby h2 { font-size: 28px; font-weight: 700; margin-bottom: 8px; }
+  .lobby .subtitle { color: var(--text2); margin-bottom: 32px; }
+  .room-code-display {
+    background: var(--surface); border: 2px dashed var(--accent); border-radius: var(--radius);
+    padding: 32px; max-width: 350px; margin: 0 auto 24px; cursor: pointer;
+  }
+  .room-code-display .code-label { font-size: 12px; color: var(--text3); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 8px; }
+  .room-code-display .code { font-size: 48px; font-weight: 900; letter-spacing: 12px; color: var(--accent2); font-variant-numeric: tabular-nums; }
+  .room-code-display .code-hint { font-size: 12px; color: var(--text3); margin-top: 8px; }
+  .lobby-status { color: var(--text2); font-size: 15px; margin: 24px 0; }
+  .lobby-status .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; animation: blink 1.5s infinite; }
+  .lobby-status .dot.waiting { background: var(--yellow); }
+  .lobby-status .dot.connected { background: var(--green); animation: none; }
+  @keyframes blink { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+  .lobby-share { max-width: 400px; margin: 0 auto 24px; }
+  .lobby-share-row { display: flex; gap: 8px; }
+  .lobby-share-row input {
+    flex: 1; padding: 12px 14px; border-radius: 8px;
+    border: 1px solid var(--border2); background: var(--surface); color: var(--text);
+    font-family: inherit; font-size: 14px; outline: none;
+  }
+  .lobby-share-row button {
+    padding: 12px 20px; border-radius: 8px; border: none;
+    background: var(--accent); color: white; font-family: inherit;
+    font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
+  }
+  .lobby-share-row button.copied { background: var(--green); }
+  .join-input-group { max-width: 300px; margin: 0 auto 24px; }
+  .join-input-group input {
+    width: 100%; padding: 16px; border-radius: var(--radius-sm);
+    border: 2px solid var(--border2); background: var(--surface); color: var(--accent2);
+    font-family: inherit; font-size: 32px; outline: none; text-align: center;
+    letter-spacing: 8px; font-weight: 700; text-transform: uppercase;
+  }
+  .join-input-group input:focus { border-color: var(--green); }
+  .join-input-group input::placeholder { color: var(--text3); font-size: 16px; letter-spacing: 2px; font-weight: 400; }
+
+  .game-mode-cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; max-width: 500px; margin: 0 auto 32px; }
+  .game-mode-card {
+    background: var(--surface); border-radius: var(--radius); padding: 32px 24px;
+    border: 1px solid var(--border3); cursor: pointer; transition: all 0.25s; text-align: center;
+  }
+  .game-mode-card:hover { transform: translateY(-4px); border-color: var(--green); box-shadow: 0 12px 40px rgba(0,184,148,0.15); }
+  .game-mode-card .icon { font-size: 36px; margin-bottom: 12px; }
+  .game-mode-card h3 { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+  .game-mode-card p { color: var(--text2); font-size: 13px; }
+
+  .countdown-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.8); z-index: 200; display: flex;
+    align-items: center; justify-content: center;
+  }
+  .countdown-num { font-size: 120px; font-weight: 900; color: var(--green); animation: countPop 0.8s ease; }
+  @keyframes countPop { 0% { transform: scale(2); opacity:0; } 50% { transform: scale(1); opacity:1; } 100% { transform: scale(0.8); opacity:0.5; } }
 
   /* ─── GUESS INPUT ─── */
   .guess-area { max-width: 560px; margin: 0 auto 20px; }
@@ -624,8 +689,33 @@
   <div id="screen-game-setup" class="screen">
     <div class="game-setup">
       <h2><span class="glow">Game Mode</span></h2>
-      <p>Two players take turns. 60 seconds each. Most correct translations wins.</p>
-      <div class="player-inputs">
+      <p>Translate the most words in 60 seconds to win.</p>
+      <div class="player-input-group" style="max-width:300px;margin:0 auto 28px;">
+        <label>Your Name</label>
+        <input type="text" id="my-name" placeholder="Enter your name" value="" />
+      </div>
+      <div class="game-mode-cards">
+        <div class="game-mode-card" onclick="SFX.click(); showLocalSetup()">
+          <div class="icon">&#x1F3AE;</div>
+          <h3>Same Device</h3>
+          <p>Two players take turns on one device</p>
+        </div>
+        <div class="game-mode-card" onclick="SFX.click(); showOnlineSetup()">
+          <div class="icon">&#x1F310;</div>
+          <h3>Online</h3>
+          <p>Play against a friend on their own device</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LOCAL GAME SETUP -->
+  <div id="screen-local-setup" class="screen">
+    <div class="game-setup">
+      <button class="back-btn" onclick="SFX.click(); showScreen('game-setup')">Back</button>
+      <h2><span class="glow">Same Device</span></h2>
+      <p>Two players take turns. 60 seconds each.</p>
+      <div class="player-inputs" style="max-width:400px;margin:0 auto 28px;">
         <div class="player-input-group">
           <label>Player 1</label>
           <input type="text" id="p1-name" placeholder="Enter name" value="Player 1" />
@@ -635,21 +725,72 @@
           <input type="text" id="p2-name" placeholder="Enter name" value="Player 2" />
         </div>
       </div>
-      <div class="game-setup-actions">
-        <button class="btn btn-primary" onclick="SFX.start(); startGame()" style="background:var(--green);">Start Game</button>
-      </div>
-      <div class="invite-section">
-        <p>Challenge a friend remotely &mdash; send them this link:</p>
-        <div class="invite-row">
-          <input type="text" id="invite-link" readonly />
-          <button id="copy-invite-btn" onclick="copyInviteLink()">Copy Link</button>
+      <button class="btn btn-primary" onclick="SFX.start(); startLocalGame()" style="background:var(--green);">Start Game</button>
+    </div>
+  </div>
+
+  <!-- ONLINE SETUP -->
+  <div id="screen-online-setup" class="screen">
+    <div class="game-setup">
+      <button class="back-btn" onclick="SFX.click(); cleanupPeer(); showScreen('game-setup')">Back</button>
+      <h2><span class="glow">Online Game</span></h2>
+      <p>Play simultaneously against a friend in real time.</p>
+      <div class="game-mode-cards">
+        <div class="game-mode-card" onclick="SFX.click(); createRoom()">
+          <div class="icon">&#x1F3E0;</div>
+          <h3>Create Room</h3>
+          <p>Get a code to share with your friend</p>
+        </div>
+        <div class="game-mode-card" onclick="SFX.click(); showJoinRoom()">
+          <div class="icon">&#x1F517;</div>
+          <h3>Join Room</h3>
+          <p>Enter a room code to join</p>
         </div>
       </div>
     </div>
   </div>
 
+  <!-- LOBBY (host) -->
+  <div id="screen-lobby-host" class="screen">
+    <div class="lobby">
+      <button class="back-btn" onclick="SFX.click(); cleanupPeer(); showScreen('online-setup')">Back</button>
+      <h2>Your Room</h2>
+      <p class="subtitle">Share this code with your friend</p>
+      <div class="room-code-display" onclick="copyRoomCode()">
+        <div class="code-label">Room Code</div>
+        <div class="code" id="room-code-display">----</div>
+        <div class="code-hint">tap to copy</div>
+      </div>
+      <div class="lobby-share">
+        <div class="lobby-share-row">
+          <input type="text" id="lobby-share-link" readonly />
+          <button id="lobby-copy-btn" onclick="copyLobbyLink()">Copy Link</button>
+        </div>
+      </div>
+      <div class="lobby-status" id="lobby-status"><span class="dot waiting"></span>Waiting for opponent...</div>
+    </div>
+  </div>
+
+  <!-- LOBBY (join) -->
+  <div id="screen-lobby-join" class="screen">
+    <div class="lobby">
+      <button class="back-btn" onclick="SFX.click(); cleanupPeer(); showScreen('online-setup')">Back</button>
+      <h2>Join Room</h2>
+      <p class="subtitle">Enter the room code from your friend</p>
+      <div class="join-input-group">
+        <input type="text" id="join-code-input" placeholder="ABCD" maxlength="4" autocomplete="off" />
+      </div>
+      <button class="btn btn-primary" onclick="SFX.click(); joinRoom()" style="background:var(--green);" id="join-btn">Join</button>
+      <div class="lobby-status" id="join-status" style="display:none;"><span class="dot waiting"></span>Connecting...</div>
+    </div>
+  </div>
+
   <!-- GAME PLAY -->
   <div id="screen-game-play" class="screen">
+    <div class="game-opponent-score" id="opponent-score-box">
+      <div class="opp-name" id="opp-name">Opponent</div>
+      <div class="opp-score" id="opp-score">0</div>
+    </div>
     <div class="game-arena">
       <div class="game-player-label" id="game-player-label"></div>
       <div class="game-timer" id="game-timer">60</div>
@@ -663,13 +804,13 @@
     </div>
   </div>
 
-  <!-- GAME WAITING -->
+  <!-- GAME WAITING (local mode turn switch) -->
   <div id="screen-game-waiting" class="screen">
     <div class="game-waiting">
       <h2 id="waiting-title">Great job!</h2>
       <div class="score-display" id="waiting-score">0</div>
       <p style="color:var(--text2);margin-bottom:32px;" id="waiting-text">Pass the device to the next player.</p>
-      <button class="btn btn-primary" onclick="SFX.start(); startPlayerTurn(2)" style="background:var(--green);" id="waiting-btn">Start Player 2's Turn</button>
+      <button class="btn btn-primary" onclick="SFX.start(); startLocalPlayerTurn(2)" style="background:var(--green);" id="waiting-btn">Start Player 2's Turn</button>
     </div>
   </div>
 
@@ -691,15 +832,20 @@
         </div>
       </div>
       <div style="display:flex;gap:12px;justify-content:center;">
-        <button class="btn btn-primary" onclick="SFX.click(); showScreen('game-setup')" style="background:var(--green);">Play Again</button>
-        <button class="btn btn-secondary" onclick="SFX.click(); showScreen('home')">Home</button>
+        <button class="btn btn-primary" onclick="SFX.click(); cleanupPeer(); showScreen('game-setup')" style="background:var(--green);">Play Again</button>
+        <button class="btn btn-secondary" onclick="SFX.click(); cleanupPeer(); showScreen('home')">Home</button>
       </div>
     </div>
+  </div>
+
+  <div id="countdown-overlay" class="countdown-overlay" style="display:none;">
+    <div class="countdown-num" id="countdown-num">3</div>
   </div>
 
   <div class="toast" id="toast"></div>
 </div>
 
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script>
 // ═══════════════════════════════════════════════════════════
 // SOUND EFFECTS (Web Audio API)
@@ -1147,7 +1293,6 @@ function showScreen(id) {
   if (id === 'home') updateHomeStats();
   if (id === 'categories') renderCategories();
   if (id === 'words') renderWordList();
-  if (id === 'game-setup') updateInviteLink();
 }
 
 document.querySelectorAll('.nav-tab').forEach(tab => {
@@ -1451,106 +1596,314 @@ function unmarkKnown(es) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// GAME MODE
+// GAME MODE - SHARED
 // ═══════════════════════════════════════════════════════════
-function updateInviteLink() {
-  const url = window.location.href.split('?')[0].split('#')[0];
-  const linkInput = document.getElementById('invite-link');
-  if (linkInput) linkInput.value = url + '?mode=game';
+let peer = null;
+let peerConn = null;
+let isOnlineGame = false;
+
+function getMyName() {
+  return document.getElementById('my-name').value.trim() || 'Player';
 }
 
-function copyInviteLink() {
-  const linkInput = document.getElementById('invite-link');
-  const btn = document.getElementById('copy-invite-btn');
+function showLocalSetup() { showScreen('local-setup'); }
+function showOnlineSetup() { showScreen('online-setup'); }
+function showJoinRoom() { showScreen('lobby-join'); }
 
-  if (navigator.share) {
-    navigator.share({
-      title: 'Vamos - Spanish Challenge',
-      text: 'I challenge you to a Spanish vocabulary game! Who can translate the most words in 60 seconds?',
-      url: linkInput.value
-    }).catch(() => {});
-    return;
+function genCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 4; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  return code;
+}
+
+function seededShuffle(arr, seed) {
+  const a = [...arr];
+  let s = seed;
+  function rand() { s = (s * 16807 + 0) % 2147483647; return (s - 1) / 2147483646; }
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
   }
-
-  navigator.clipboard.writeText(linkInput.value).then(() => {
-    SFX.correct();
-    btn.textContent = 'Copied!';
-    btn.classList.add('copied');
-    setTimeout(() => {
-      btn.textContent = 'Copy Link';
-      btn.classList.remove('copied');
-    }, 2000);
-  }).catch(() => {
-    linkInput.select();
-    document.execCommand('copy');
-    SFX.correct();
-    btn.textContent = 'Copied!';
-    btn.classList.add('copied');
-    setTimeout(() => {
-      btn.textContent = 'Copy Link';
-      btn.classList.remove('copied');
-    }, 2000);
-  });
+  return a;
 }
 
-function startGame() {
+function seedFromCode(code) {
+  let h = 0;
+  for (let i = 0; i < code.length; i++) h = ((h << 5) - h + code.charCodeAt(i)) | 0;
+  return Math.abs(h) || 1;
+}
+
+function cleanupPeer() {
+  clearInterval(gameState.timer);
+  document.getElementById('opponent-score-box').classList.remove('visible');
+  if (peerConn) { try { peerConn.close(); } catch {} peerConn = null; }
+  if (peer) { try { peer.destroy(); } catch {} peer = null; }
+  isOnlineGame = false;
+}
+
+function sendPeer(data) {
+  if (peerConn && peerConn.open) peerConn.send(data);
+}
+
+// ─── LOCAL GAME ───
+function startLocalGame() {
   const p1 = document.getElementById('p1-name').value.trim() || 'Player 1';
   const p2 = document.getElementById('p2-name').value.trim() || 'Player 2';
-
+  isOnlineGame = false;
   const shuffled = [...ALL_WORDS].sort(() => Math.random() - 0.5);
-
   gameState = {
     p1: { name: p1, score: 0, words: shuffled.slice(0, 500) },
     p2: { name: p2, score: 0, words: shuffled.slice(500) },
-    currentPlayer: 1,
-    wordIndex: 0,
-    timer: null,
-    timeLeft: 60
+    currentPlayer: 1, wordIndex: 0, timer: null, timeLeft: 60
   };
-
-  startPlayerTurn(1);
+  document.getElementById('opponent-score-box').classList.remove('visible');
+  startLocalPlayerTurn(1);
 }
 
-function startPlayerTurn(playerNum) {
+function startLocalPlayerTurn(playerNum) {
   gameState.currentPlayer = playerNum;
   const player = playerNum === 1 ? gameState.p1 : gameState.p2;
   gameState.wordIndex = 0;
   gameState.timeLeft = 60;
-
   showScreen('game-play');
-
   document.getElementById('game-player-label').textContent = player.name + "'s Turn";
   document.getElementById('game-live-score').textContent = '0';
   document.getElementById('game-timer').textContent = '60';
   document.getElementById('game-timer').classList.remove('warning');
+  document.getElementById('opponent-score-box').classList.remove('visible');
+  showGameWord();
+  const input = document.getElementById('game-input');
+  input.value = ''; input.focus();
+  clearInterval(gameState.timer);
+  gameState.timer = setInterval(() => {
+    gameState.timeLeft--;
+    document.getElementById('game-timer').textContent = gameState.timeLeft;
+    if (gameState.timeLeft <= 10) { document.getElementById('game-timer').classList.add('warning'); SFX.timeWarning(); }
+    if (gameState.timeLeft <= 0) { clearInterval(gameState.timer); SFX.timeUp(); endLocalTurn(); }
+  }, 1000);
+}
+
+function endLocalTurn() {
+  const player = gameState.currentPlayer === 1 ? gameState.p1 : gameState.p2;
+  if (gameState.currentPlayer === 1) {
+    showScreen('game-waiting');
+    document.getElementById('waiting-title').textContent = player.name + ' is done!';
+    document.getElementById('waiting-score').textContent = player.score;
+    document.getElementById('waiting-text').textContent = 'Pass the device to ' + gameState.p2.name + '.';
+    document.getElementById('waiting-btn').textContent = "Start " + gameState.p2.name + "'s Turn";
+  } else {
+    showFinalResults();
+  }
+}
+
+// ─── ONLINE GAME ───
+function createRoom() {
+  const code = genCode();
+  const peerId = 'vamos-' + code.toLowerCase();
+  cleanupPeer();
+  isOnlineGame = true;
+  gameState = { code, myName: getMyName(), myScore: 0, oppName: '', oppScore: 0, isHost: true,
+    words: [], wordIndex: 0, timer: null, timeLeft: 60 };
+
+  showScreen('lobby-host');
+  document.getElementById('room-code-display').textContent = code;
+  document.getElementById('lobby-status').innerHTML = '<span class="dot waiting"></span>Waiting for opponent...';
+
+  const baseUrl = window.location.href.split('?')[0].split('#')[0];
+  document.getElementById('lobby-share-link').value = baseUrl + '?room=' + code;
+
+  peer = new Peer(peerId, { debug: 0 });
+  peer.on('open', () => {
+    console.log('Host peer open:', peerId);
+  });
+  peer.on('connection', (conn) => {
+    peerConn = conn;
+    conn.on('open', () => {
+      conn.on('data', handleHostData);
+      sendPeer({ type: 'hello', name: gameState.myName });
+    });
+    conn.on('close', () => {
+      if (gameState.timeLeft > 0) toast('Opponent disconnected');
+    });
+  });
+  peer.on('error', (err) => {
+    console.error('Peer error:', err);
+    if (err.type === 'unavailable-id') {
+      toast('Room code taken, try again');
+      cleanupPeer();
+      showScreen('online-setup');
+    }
+  });
+}
+
+function handleHostData(data) {
+  if (data.type === 'hello') {
+    gameState.oppName = data.name;
+    document.getElementById('lobby-status').innerHTML = '<span class="dot connected"></span><strong>' + data.name + '</strong> joined! Starting...';
+    sendPeer({ type: 'hello', name: gameState.myName });
+    // Host starts the game after short delay
+    const seed = seedFromCode(gameState.code);
+    gameState.words = seededShuffle(ALL_WORDS, seed);
+    setTimeout(() => {
+      sendPeer({ type: 'start', seed });
+      startOnlineCountdown();
+    }, 1500);
+  }
+  if (data.type === 'score') {
+    gameState.oppScore = data.score;
+    document.getElementById('opp-score').textContent = data.score;
+  }
+  if (data.type === 'done') {
+    gameState.oppScore = data.score;
+    gameState.oppDone = true;
+    document.getElementById('opp-score').textContent = data.score;
+    if (gameState.myDone) showFinalResults();
+  }
+}
+
+function joinRoom() {
+  const code = document.getElementById('join-code-input').value.trim().toUpperCase();
+  if (code.length < 4) { toast('Enter a 4-character code'); return; }
+  const peerId = 'vamos-' + code.toLowerCase();
+  cleanupPeer();
+  isOnlineGame = true;
+  gameState = { code, myName: getMyName(), myScore: 0, oppName: '', oppScore: 0, isHost: false,
+    words: [], wordIndex: 0, timer: null, timeLeft: 60 };
+
+  document.getElementById('join-status').style.display = '';
+  document.getElementById('join-status').innerHTML = '<span class="dot waiting"></span>Connecting...';
+
+  peer = new Peer(undefined, { debug: 0 });
+  peer.on('open', () => {
+    peerConn = peer.connect(peerId, { reliable: true });
+    peerConn.on('open', () => {
+      sendPeer({ type: 'hello', name: gameState.myName });
+      peerConn.on('data', handleGuestData);
+    });
+    peerConn.on('close', () => {
+      if (gameState.timeLeft > 0) toast('Host disconnected');
+    });
+    peerConn.on('error', () => {
+      toast('Connection failed');
+      document.getElementById('join-status').innerHTML = '<span class="dot waiting"></span>Failed. Check the code.';
+    });
+  });
+  peer.on('error', (err) => {
+    console.error('Peer error:', err);
+    toast('Could not connect. Check the code.');
+    document.getElementById('join-status').innerHTML = '<span class="dot waiting"></span>Failed. Check the code.';
+  });
+}
+
+function handleGuestData(data) {
+  if (data.type === 'hello') {
+    gameState.oppName = data.name;
+    document.getElementById('join-status').innerHTML = '<span class="dot connected"></span>Connected to <strong>' + data.name + '</strong>! Starting...';
+  }
+  if (data.type === 'start') {
+    gameState.words = seededShuffle(ALL_WORDS, data.seed);
+    startOnlineCountdown();
+  }
+  if (data.type === 'score') {
+    gameState.oppScore = data.score;
+    document.getElementById('opp-score').textContent = data.score;
+  }
+  if (data.type === 'done') {
+    gameState.oppScore = data.score;
+    gameState.oppDone = true;
+    document.getElementById('opp-score').textContent = data.score;
+    if (gameState.myDone) showFinalResults();
+  }
+}
+
+function startOnlineCountdown() {
+  const overlay = document.getElementById('countdown-overlay');
+  const numEl = document.getElementById('countdown-num');
+  overlay.style.display = 'flex';
+  let count = 3;
+  numEl.textContent = count;
+  SFX.tick();
+  const iv = setInterval(() => {
+    count--;
+    if (count > 0) {
+      numEl.textContent = count;
+      numEl.style.animation = 'none';
+      void numEl.offsetWidth; // reflow
+      numEl.style.animation = 'countPop 0.8s ease';
+      SFX.tick();
+    } else {
+      clearInterval(iv);
+      numEl.textContent = 'GO!';
+      numEl.style.animation = 'none';
+      void numEl.offsetWidth;
+      numEl.style.animation = 'countPop 0.8s ease';
+      SFX.start();
+      setTimeout(() => {
+        overlay.style.display = 'none';
+        startOnlinePlay();
+      }, 600);
+    }
+  }, 800);
+}
+
+function startOnlinePlay() {
+  gameState.myScore = 0;
+  gameState.oppScore = 0;
+  gameState.wordIndex = 0;
+  gameState.timeLeft = 60;
+  gameState.myDone = false;
+  gameState.oppDone = false;
+
+  showScreen('game-play');
+  document.getElementById('game-player-label').textContent = 'You — ' + gameState.myName;
+  document.getElementById('game-live-score').textContent = '0';
+  document.getElementById('game-timer').textContent = '60';
+  document.getElementById('game-timer').classList.remove('warning');
+
+  // Show opponent score
+  const oppBox = document.getElementById('opponent-score-box');
+  oppBox.classList.add('visible');
+  document.getElementById('opp-name').textContent = gameState.oppName;
+  document.getElementById('opp-score').textContent = '0';
 
   showGameWord();
-
   const input = document.getElementById('game-input');
-  input.value = '';
-  input.focus();
+  input.value = ''; input.focus();
 
   clearInterval(gameState.timer);
   gameState.timer = setInterval(() => {
     gameState.timeLeft--;
     document.getElementById('game-timer').textContent = gameState.timeLeft;
-    if (gameState.timeLeft <= 10) {
-      document.getElementById('game-timer').classList.add('warning');
-      SFX.timeWarning();
-    }
+    if (gameState.timeLeft <= 10) { document.getElementById('game-timer').classList.add('warning'); SFX.timeWarning(); }
     if (gameState.timeLeft <= 0) {
       clearInterval(gameState.timer);
       SFX.timeUp();
-      endPlayerTurn();
+      gameState.myDone = true;
+      sendPeer({ type: 'done', score: gameState.myScore });
+      if (gameState.oppDone) showFinalResults();
+      else {
+        document.getElementById('game-player-label').textContent = 'Time up! Waiting for ' + gameState.oppName + '...';
+        document.getElementById('game-input').disabled = true;
+      }
     }
   }, 1000);
 }
 
+// ─── SHARED GAME PLAY ───
 function showGameWord() {
-  const player = gameState.currentPlayer === 1 ? gameState.p1 : gameState.p2;
-  if (gameState.wordIndex >= player.words.length) gameState.wordIndex = 0;
-  const w = player.words[gameState.wordIndex];
-  document.getElementById('game-word').textContent = w.es;
+  let words, idx;
+  if (isOnlineGame) {
+    words = gameState.words;
+    idx = gameState.wordIndex;
+  } else {
+    const player = gameState.currentPlayer === 1 ? gameState.p1 : gameState.p2;
+    words = player.words;
+    idx = gameState.wordIndex;
+  }
+  if (idx >= words.length) idx = 0;
+  gameState.wordIndex = idx;
+  document.getElementById('game-word').textContent = words[idx].es;
 }
 
 function gameSkip() {
@@ -1568,16 +1921,27 @@ function checkGameAnswer() {
   const answer = input.value.trim().toLowerCase();
   if (!answer) return;
 
-  const player = gameState.currentPlayer === 1 ? gameState.p1 : gameState.p2;
-  const w = player.words[gameState.wordIndex];
-
+  let words;
+  if (isOnlineGame) {
+    words = gameState.words;
+  } else {
+    words = (gameState.currentPlayer === 1 ? gameState.p1 : gameState.p2).words;
+  }
+  const w = words[gameState.wordIndex];
   const correct = w.en.toLowerCase();
   const answers = correct.split('/').map(a => a.trim().replace(/^to /, ''));
   const isCorrect = answers.some(a => answer === a || answer === correct || answer === correct.replace(/^to /, ''));
 
   if (isCorrect) {
-    player.score++;
-    document.getElementById('game-live-score').textContent = player.score;
+    if (isOnlineGame) {
+      gameState.myScore++;
+      document.getElementById('game-live-score').textContent = gameState.myScore;
+      sendPeer({ type: 'score', score: gameState.myScore });
+    } else {
+      const player = gameState.currentPlayer === 1 ? gameState.p1 : gameState.p2;
+      player.score++;
+      document.getElementById('game-live-score').textContent = player.score;
+    }
     SFX.gameCorrect();
     input.classList.add('correct-flash');
     setTimeout(() => { input.classList.remove('correct-flash'); }, 200);
@@ -1594,39 +1958,35 @@ function checkGameAnswer() {
 document.getElementById('game-input').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') checkGameAnswer();
   if (e.key === 'Tab' || e.key === 'ArrowRight') {
-    // Only skip on ArrowRight if the input is empty or cursor is at the end
     if (e.key === 'ArrowRight') {
       const input = document.getElementById('game-input');
-      if (input.selectionStart < input.value.length) return; // let arrow navigate within text
+      if (input.selectionStart < input.value.length) return;
     }
     e.preventDefault();
     gameSkip();
   }
 });
 
-function endPlayerTurn() {
-  const player = gameState.currentPlayer === 1 ? gameState.p1 : gameState.p2;
-
-  if (gameState.currentPlayer === 1) {
-    showScreen('game-waiting');
-    document.getElementById('waiting-title').textContent = player.name + ' is done!';
-    document.getElementById('waiting-score').textContent = player.score;
-    document.getElementById('waiting-text').textContent = `Pass the device to ${gameState.p2.name}.`;
-    document.getElementById('waiting-btn').textContent = `Start ${gameState.p2.name}'s Turn`;
-  } else {
-    showGameResults();
-  }
-}
-
-function showGameResults() {
+// ─── RESULTS ───
+function showFinalResults() {
+  document.getElementById('opponent-score-box').classList.remove('visible');
+  document.getElementById('game-input').disabled = false;
   showScreen('game-final');
   SFX.win();
 
-  const p1 = gameState.p1, p2 = gameState.p2;
-  document.getElementById('gp1-name').textContent = p1.name;
-  document.getElementById('gp1-score').textContent = p1.score;
-  document.getElementById('gp2-name').textContent = p2.name;
-  document.getElementById('gp2-score').textContent = p2.score;
+  let name1, score1, name2, score2;
+  if (isOnlineGame) {
+    name1 = gameState.myName; score1 = gameState.myScore;
+    name2 = gameState.oppName; score2 = gameState.oppScore;
+  } else {
+    name1 = gameState.p1.name; score1 = gameState.p1.score;
+    name2 = gameState.p2.name; score2 = gameState.p2.score;
+  }
+
+  document.getElementById('gp1-name').textContent = name1;
+  document.getElementById('gp1-score').textContent = score1;
+  document.getElementById('gp2-name').textContent = name2;
+  document.getElementById('gp2-score').textContent = score2;
 
   const title = document.getElementById('game-result-title');
   const card1 = document.getElementById('gp1-card');
@@ -1634,15 +1994,38 @@ function showGameResults() {
   card1.classList.remove('winner-card');
   card2.classList.remove('winner-card');
 
-  if (p1.score > p2.score) {
-    title.innerHTML = `<span class="winner">${p1.name} wins!</span>`;
+  if (score1 > score2) {
+    title.innerHTML = '<span class="winner">' + name1 + ' wins!</span>';
     card1.classList.add('winner-card');
-  } else if (p2.score > p1.score) {
-    title.innerHTML = `<span class="winner">${p2.name} wins!</span>`;
+  } else if (score2 > score1) {
+    title.innerHTML = '<span class="winner">' + name2 + ' wins!</span>';
     card2.classList.add('winner-card');
   } else {
-    title.innerHTML = `<span class="tie">It's a tie!</span>`;
+    title.innerHTML = '<span class="tie">It\'s a tie!</span>';
   }
+}
+
+// ─── LOBBY UTILS ───
+function copyRoomCode() {
+  const code = gameState.code;
+  navigator.clipboard.writeText(code).then(() => { SFX.correct(); toast('Code copied: ' + code); }).catch(() => {});
+}
+
+function copyLobbyLink() {
+  const input = document.getElementById('lobby-share-link');
+  const btn = document.getElementById('lobby-copy-btn');
+  const url = input.value;
+
+  if (navigator.share) {
+    navigator.share({ title: 'Vamos - Spanish Challenge', text: 'Join my Spanish vocabulary game!', url }).catch(() => {});
+    return;
+  }
+  navigator.clipboard.writeText(url).then(() => {
+    SFX.correct();
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copy Link'; btn.classList.remove('copied'); }, 2000);
+  }).catch(() => { input.select(); document.execCommand('copy'); toast('Link copied!'); });
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1680,10 +2063,16 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-// Auto-navigate to game mode if ?mode=game in URL
+// Auto-navigate based on URL params
 (function checkUrlParams() {
   const params = new URLSearchParams(window.location.search);
-  if (params.get('mode') === 'game') {
+  if (params.get('room')) {
+    showScreen('game-setup');
+    setTimeout(() => {
+      showScreen('lobby-join');
+      document.getElementById('join-code-input').value = params.get('room').toUpperCase();
+    }, 100);
+  } else if (params.get('mode') === 'game') {
     showScreen('game-setup');
   }
 })();
